@@ -139,22 +139,7 @@ Animation uses a single scheduled timeout. Pause cancels the timeout; resume con
 6. Load **Unreachable goal**. Run any algorithm and show “No path exists.” All four algorithms agree in the comparison.
 7. Start another search, pause, then **Reset Search** to show the maze is preserved and animation is cancelled. **Clear Grid**, draw a few walls/weights, relocate an endpoint, and run again.
 
-## Five likely viva questions
 
-**1. Why can BFS find the shortest path but fail to find the cheapest path?**  
-BFS processes cells by increasing number of edges from the start. It guarantees the fewest moves when each move is treated equally, but does not account for differing terrain costs. Dijkstra is needed for minimum total nonnegative cost.
-
-**2. What is the difference between BFS and DFS?**  
-BFS uses a queue and explores layers; DFS uses a stack and explores deeper branches first. Both visit each reachable vertex/edge a bounded number of times, giving O(V + E) search time. Only BFS guarantees the fewest moves on an unweighted graph.
-
-**3. Why does Dijkstra use a binary min-heap?**  
-It repeatedly needs the unsettled cell with the smallest known distance. A min-heap supports insertion and removal of the minimum in logarithmic time. With neighbor relaxation, this gives O((V + E) log V) on this grid. Nonnegative costs ensure a settled distance cannot later improve.
-
-**4. Why is Manhattan distance a valid A* heuristic here?**  
-There are no diagonal moves, so the row difference plus column difference is a lower bound on remaining steps. Each step costs at least 1. It is admissible and consistent, allowing A* to settle each cell once and return a minimum-cost route.
-
-**5. How do you reconstruct and fairly compare the paths?**  
-Store each cell's predecessor during search, then walk backward from the goal and reverse the list. Count moves as cells minus one and sum entered-cell costs, excluding the start. Run all algorithms against the same grid and measure only algorithm computation, separately from animation and DOM rendering.
 
 ## Verification
 
