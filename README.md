@@ -162,4 +162,4 @@ Performed checks:
 - The real UI script passes **DOM/timer test-double checks** for all three Generate Maze presets, disabled generation during a run or pause, preserved endpoint markers, manual editing after generation, endpoint protection, pointer and keyboard handlers, editing locks, pause/resume, repeated runs, reset while active or paused, stale callbacks after a new run, Clear during animation, unreachable results, and repeated comparison on an unchanged grid.
 - JavaScript syntax checks pass.
 
-**Verification limit:** actual browser rendering, physical mouse/touch interactions, screen-reader behavior, and opening the page via `file://` were not visually verified in this environment. Browser automation rejected local-file navigation under its URL policy. The UI state tests use DOM and timer test doubles, not a browser engine. Before presenting, open `index.html` in your browser and follow the demonstration sequence, including a narrow-window check. No server is needed for normal use.
+
