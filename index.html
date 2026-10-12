@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="An interactive DAA mini project comparing maze pathfinding algorithms.">
+  <title>Pathfinder — Maze Algorithm Lab</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="algorithms.js" defer></script>
+  <script src="maze-generation.js" defer></script>
+  <script src="demos.js" defer></script>
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">↗</span> Pathfinder<span class="brand-sub"> / ALGORITHM LAB</span></a>
+    <span class="project-tag">DAA MINI PROJECT</span>
+  </header>
+  <main>
+    <section class="intro">
+      <div><p class="eyebrow">EXPLORE · VISUALIZE · COMPARE</p><h1>Every path tells a different story.</h1><p>Build a maze. Watch the search. Discover what makes a path optimal.</p></div>
+      <div class="grid-facts"><strong>21 × 31</strong><span>cells · 4 directions</span></div>
+    </section>
+    <div class="workspace">
+      <aside class="panel controls" aria-label="Maze controls">
+        <div class="control-settings">
+        <div class="section-label"><span>01</span> SET UP YOUR SEARCH</div>
+        <label for="algorithm">Search algorithm</label>
+        <select id="algorithm"><option>BFS</option><option>DFS</option><option>Dijkstra</option><option>A*</option></select>
+        <p id="algorithm-hint" class="hint">Shortest route by number of moves.</p>
+        <label for="difficulty">Generate a corridor maze</label>
+        <div class="generator-control"><select id="difficulty" aria-describedby="generation-method difficulty-hint"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select><button id="generate" class="small-button">Generate Maze</button></div>
+        <p id="generation-method" class="hint"><strong>Maze generation:</strong> randomized DFS backtracking.</p>
+        <p id="difficulty-hint" class="hint">Balanced turns, alternative routes, and endpoint distance. Approximate difficulty.</p>
+        <label for="demo">Demo maze</label>
+        <div class="demo-control"><select id="demo"><option value="routes">Corridor maze · loops</option><option value="weighted">Weighted · cost vs. distance</option><option value="unreachable">Unreachable goal · no route</option><option value="empty">Empty grid</option></select><button id="load-demo" class="small-button">Load</button></div>
+        <p id="demo-description" class="hint">A corridor maze with junctions, dead ends, and alternative routes.</p>
+        <div class="control-divider"></div>
+        <fieldset><legend>Editing tools</legend><div class="tool-list">
+          <button class="tool active" data-tool="wall" aria-pressed="true"><span class="swatch wall"></span>Wall</button>
+          <button class="tool" data-tool="weight" aria-pressed="false"><span class="swatch weight">5</span>Weight</button>
+          <button class="tool" data-tool="start" aria-pressed="false"><span class="swatch start">S</span>Start</button>
+          <button class="tool" data-tool="goal" aria-pressed="false"><span class="swatch goal">G</span>Goal</button>
+          <button class="tool eraser" data-tool="erase" aria-pressed="false"><span class="swatch empty"></span>Eraser</button>
+        </div></fieldset>
+        <p class="hint">Click or drag to paint. Select Start or Goal to move an endpoint.</p>
+        <div class="speed-heading"><label for="speed">Animation speed</label><output id="speed-value" for="speed">Fast</output></div>
+        <input id="speed" type="range" min="1" max="100" value="80">
+        <div class="range-labels"><span>Slow</span><span>Fast</span></div>
+        </div>
+        <div class="search-actions">
+        <button id="run" class="primary">▶ Run search</button>
+        <button id="pause" disabled>Ⅱ Pause</button>
+        <div class="button-pair"><button id="reset">Reset Search</button><button id="clear">Clear Grid</button></div>
+        <button id="compare" class="compare-button">Compare Algorithms <span aria-hidden="true">↗</span></button>
+        </div>
+      </aside>
+      <section class="panel maze-panel" aria-label="Maze visualization">
+        <div class="maze-heading"><div><h2>The search space</h2><p id="grid-note">Paint walls to change the journey.</p></div><span id="state-badge" class="state-badge">READY</span></div>
+        <div class="grid-scroll"><div id="grid" role="grid" aria-label="Maze editor, 21 rows and 31 columns" aria-describedby="keyboard-help" aria-rowcount="21" aria-colcount="31"></div></div>
+        <div class="legend" aria-label="Cell color legend">
+          <span><i class="swatch start">S</i>Start</span><span><i class="swatch goal">G</i>Goal</span><span><i class="swatch wall"></i>Wall</span><span><i class="swatch weight">5</i>Cost 5</span><span><i class="swatch empty"></i>Cost 1</span><span><i class="swatch explored"></i>Explored</span><span><i class="swatch path"></i>Path</span>
+        </div>
+        <div id="status" class="status" role="status" aria-live="polite">Ready when you are. Choose an algorithm and run your first search.</div>
+        <div class="metrics" aria-label="Latest search results">
+          <div><span>Algorithm / result</span><strong id="metric-algorithm">—</strong><small id="metric-found">No search yet</small></div>
+          <div><span>Path length</span><strong id="metric-moves">—</strong><small>moves</small></div>
+          <div><span>Path cost</span><strong id="metric-cost">—</strong><small>terrain cost</small></div>
+          <div><span>Cells expanded</span><strong id="metric-expanded">—</strong><small>unique cells</small></div>
+          <div><span>Compute time</span><strong id="metric-time">—</strong><small>ms · approximate</small></div>
+        </div>
+        <p id="keyboard-help" class="hint grid-help">Keyboard: Tab to the grid, arrows to move, Enter/Space to edit. S/G markers and terrain numbers stay visible.</p>
+      </section>
+    </div>
+    <section class="panel comparison-panel">
+      <div class="section-heading"><div><p class="eyebrow">SAME MAZE. DIFFERENT STRATEGIES.</p><h2>Compare the results</h2></div><span class="subtle-tag">COMPUTATION ONLY</span></div>
+      <p class="section-copy">Run every algorithm on the current grid without animation. All path costs include terrain weights, even when the search ignores them.</p>
+      <div class="table-scroll"><table><thead><tr><th scope="col">Algorithm</th><th scope="col">Path found</th><th scope="col">Moves</th><th scope="col">Cost</th><th scope="col">Expanded</th><th scope="col">Time (ms ≈)</th></tr></thead><tbody id="comparison-body"><tr><td colspan="6" class="table-empty">Your comparison will appear here. Select “Compare Algorithms” to begin.</td></tr></tbody></table></div>
+      <p class="method-note"><strong>How we measure:</strong> Expanded means a unique cell removed from the queue, stack, or heap and processed, including the start and the goal if reached. Stale heap entries do not count. Time uses <code>performance.now()</code> around the algorithm only; animation and rendering are excluded. Small-grid timings fluctuate.</p>
+    </section>
+    <section class="learning" aria-labelledby="learning-title">
+      <p class="eyebrow">UNDERSTAND THE ALGORITHMS</p><h2 id="learning-title">What is the search optimizing?</h2>
+      <div class="algorithm-cards">
+        <article><span class="algo-number">01 / QUEUE</span><h3>Breadth-first search</h3><p>Visits cells in layers using a FIFO queue. Guarantees the fewest moves. Ignores weights while searching, so it may choose an expensive route.</p><code>O(V + E)</code></article>
+        <article><span class="algo-number">02 / STACK</span><h3>Depth-first search</h3><p>Follows one branch deeply using a LIFO stack, then tries alternatives. Finds a valid route if one exists; neither the fewest moves nor the lowest cost is guaranteed.</p><code>O(V + E)</code></article>
+        <article><span class="algo-number">03 / MIN-HEAP</span><h3>Dijkstra’s algorithm</h3><p>Expands the cell with the lowest known cost. A binary min-heap selects the next cell. Guarantees minimum total cost for nonnegative movement costs.</p><code>O((V + E) log V)</code></article>
+        <article><span class="algo-number">04 / HEURISTIC + MIN-HEAP</span><h3>A* search</h3><p>Prioritizes cost so far plus Manhattan distance to the goal × minimum cell cost (1). This heuristic is admissible and consistent here, so A* guarantees minimum cost and settles each cell at most once.</p><code>O((V + E) log V)</code></article>
+      </div>
+      <p class="education-note"><strong>V</strong> is the number of traversable cells; <strong>E</strong> is the number of connections between neighboring cells. A four-neighbor grid has <strong>E = O(V)</strong>. These are graph-search bounds; this implementation also initializes arrays for all grid cells, including walls. The heap algorithms use lazy duplicate entries; on this grid their worst-case bound is O((V + E) log V). On an equal-cost grid, BFS and Dijkstra have the same optimal path cost, although exploration and tie-breaking can differ. Normal cells cost 1, weighted cells cost 5, and the starting cell costs 0. Neighbor order is always up, right, down, left.</p>
+    </section>
+    <footer><span>PATHFINDER / DAA ALGORITHM LAB</span><span>Plain JavaScript. A little curiosity. A better path.</span></footer>
+  </main>
+</body>
+</html>
