@@ -1,14 +1,6 @@
 # Maze Pathfinding Visualizer and Algorithm Comparison
 
-A college Design and Analysis of Algorithms (DAA) mini project built with plain HTML, CSS, and JavaScript. The objective is to visualize how different graph-search strategies explore the same maze, and distinguish the **fewest moves** from the **lowest movement cost**.
-
-## Run locally
-
-1. Keep `index.html`, `style.css`, `script.js`, `algorithms.js`, `maze-generation.js`, and `demos.js` in the same folder.
-2. Double-click **index.html**, or open it with a modern browser such as Chrome, Edge, or Firefox.
-3. Select an algorithm and press **Run search**.
-
-No internet connection, backend, database, server, package installation, or build step is required. Scripts use ordinary deferred script tags rather than modules or network requests, so the page is designed to work directly from a `file://` URL. Node.js is only needed if you choose to run the optional developer tests.
+Design and Analysis of Algorithms (DAA) mini project built with plain HTML, CSS, and JavaScript. The objective is to visualize how different graph-search strategies explore the same maze, and distinguish the **fewest moves** from the **lowest movement cost**.
 
 ## Features and controls
 
