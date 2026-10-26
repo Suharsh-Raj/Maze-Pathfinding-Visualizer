@@ -7,15 +7,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const Pathfinding = require('../algorithms.js');
-const MazeDemos = require('../demos.js');
-const MazeGeneration = require('../maze-generation.js');
+const Pathfinding = require('./algorithms.js');
+const MazeDemos = require('./demos.js');
+const MazeGeneration = require('./maze-generation.js');
 
 class Element {
   constructor(tag = 'div') {
     this.tagName = tag; this.children = []; this.attributes = {};
     this.dataset = {}; this.listeners = {}; this.className = '';
     this.textContent = ''; this.disabled = false; this.value = ''; this.tabIndex = -1;
+    this.hidden = false; this.checked = false; this.style = { setProperty() {} };
     this.classList = {
       add: name => { if (!this.className.split(' ').includes(name)) this.className += ' ' + name; },
       toggle: (name, active) => {
@@ -38,12 +39,13 @@ class Element {
 }
 
 // Derive IDs from the real HTML so missing UI elements cause a test failure.
-const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const elements = Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(match => [match[1], new Element()]));
 assert.equal(Object.keys(elements).length, [...html.matchAll(/id="([^"]+)"/g)].length, 'Duplicate HTML IDs');
 const tools = ['wall', 'weight', 'start', 'goal', 'erase'].map(name => {
   const element = new Element('button'); element.dataset.tool = name; return element;
 });
+elements.grid.parentElement = new Element();
 const window = new Element();
 let pointerCell = null, nextTimer = 0, clock = 0;
 const pending = new Map();
@@ -62,7 +64,8 @@ const context = vm.createContext({
 });
 elements.algorithm.value = 'BFS'; elements.demo.value = 'routes'; elements.speed.value = '80';
 elements.difficulty.value = 'medium';
-vm.runInContext(fs.readFileSync(path.join(__dirname, '../script.js'), 'utf8'), context);
+elements['terrain-cost'].value = '5';
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'script.js'), 'utf8'), context);
 const read = expression => vm.runInContext(expression, context);
 const state = () => read('JSON.stringify(maze)');
 const cell = id => read(`cellButtons[${id}]`);
@@ -114,6 +117,8 @@ assert.equal(cell(defaultStart + 1).tabIndex, 0);
 assert(cell(defaultStart + 1).focused);
 
 load('weighted');
+const { start: weightedStart, goal: weightedGoal } = MazeDemos.createGrid('weighted');
+assert.equal(read('cellButtons.length'), 345);
 const beforeRun = state();
 click('run');
 assert(read('running')); assert(elements.run.disabled); assert(elements.compare.disabled);
@@ -127,18 +132,18 @@ assert.equal(elements['state-badge'].textContent, 'PAUSED');
 const pausedIndex = read('frameIndex'); tick(); assert.equal(read('frameIndex'), pausedIndex);
 paint(0); assert.equal(state(), beforeRun, 'Editing was allowed while paused');
 elements.generate.fire('click'); assert.equal(state(), beforeRun, 'Generation was allowed while paused');
-assert.equal(cell(defaultStart).textContent, 'S'); assert.equal(cell(defaultGoal).textContent, 'G');
+assert.equal(read('terrainLabels[maze.start].textContent'), 'S'); assert.equal(read('terrainLabels[maze.goal].textContent'), 'G');
 click('pause'); assert(!read('paused')); assert(read('frameIndex') > pausedIndex);
 finish();
 assert(!read('running')); assert(!elements.run.disabled); assert(elements.pause.disabled);
-assert.equal(elements['metric-moves'].textContent, 21);
-assert.equal(elements['metric-cost'].textContent, 101);
+assert.equal(elements['metric-moves'].textContent, 10);
+assert.equal(elements['metric-cost'].textContent, 70);
 assert.equal(elements['metric-found'].textContent, 'Path found');
 assert.equal(elements['metric-time'].textContent, '1.000');
-assert.equal(read('cellButtons.filter(button => button.className.split(" ").includes("path")).length'), 22);
+assert.equal(read('cellButtons.filter(button => button.className.split(" ").includes("path")).length'), 11);
 assert.equal(state(), beforeRun);
-assert.equal(cell(defaultStart).textContent, 'S'); assert.equal(cell(defaultGoal).textContent, 'G');
-assert(cell(defaultStart).className.includes('start') && cell(defaultGoal).className.includes('goal'));
+assert.equal(read('terrainLabels[maze.start].textContent'), 'S'); assert.equal(read('terrainLabels[maze.goal].textContent'), 'G');
+assert(cell(weightedStart).className.includes('start') && cell(weightedGoal).className.includes('goal'));
 
 // Reset cancels timers and ignores a captured callback even after a NEW run starts.
 click('run'); const oldCallback = [...pending.values()][0];
@@ -147,7 +152,9 @@ assert.equal(elements['metric-moves'].textContent, '—');
 assert.equal(read('cellButtons.filter(button => /explored|path/.test(button.className)).length'), 0);
 elements.algorithm.value = 'Dijkstra'; click('run');
 const newIndex = read('frameIndex'); oldCallback(); assert.equal(read('frameIndex'), newIndex);
-finish(); assert.equal(elements['metric-moves'].textContent, 31); assert.equal(elements['metric-cost'].textContent, 31);
+finish(); assert.equal(elements['metric-moves'].textContent, 20); assert.equal(elements['metric-cost'].textContent, 20);
+assert(!elements['why-panel'].hidden);
+assert.equal(elements['why-breakdown'].textContent, '20 cells × 1 = 20');
 click('run'); click('pause'); click('reset'); assert.equal(pending.size, 0); assert(!read('running || paused'));
 
 // Comparison must not change the maze or launch animation; metrics match pure runs.
@@ -192,11 +199,60 @@ for (const difficulty of ['easy', 'medium', 'hard']) {
   assert.equal(state(), generated); assert.equal(pending.size, 0);
   click('run'); finish();
   assert.equal(elements['metric-found'].textContent, 'Path found');
-  assert.equal(cell(read('maze.start')).textContent, 'S');
-  assert.equal(cell(read('maze.goal')).textContent, 'G');
+  assert.equal(read('terrainLabels[maze.start].textContent'), 'S');
+  assert.equal(read('terrainLabels[maze.goal].textContent'), 'G');
   tool('weight'); paint(0);
   assert.equal(read('maze.cells[0]'), 5, 'Manual editing stopped working after generation');
   assert.equal(read('maze.generation'), undefined, 'Generated metadata survived manual editing');
   assert.equal(elements['comparison-body'].children.length, 0);
 }
-console.log('PASS: generation controls, editing, endpoint markers, pointer/keyboard handlers, pause/resume, reset races, repeated runs, clear during animation, unreachable results, and unchanged-grid comparison (DOM/timer test doubles).');
+// New weighted teaching controls use the same real event handlers.
+load('weighted'); elements.algorithm.value = 'Dijkstra'; elements.algorithm.fire('change');
+elements['show-costs'].checked = true; elements['show-costs'].fire('change');
+elements['step-mode'].checked = true;
+click('run'); assert.equal(pending.size, 0); assert(elements.pause.disabled);
+assert(!elements['next-step'].disabled); assert(!elements['trace-panel'].hidden);
+assert.equal(read('visualDistances[maze.start]'), 0);
+assert(!read('distanceLabels[maze.start].hidden'));
+click('next-step'); assert.equal(read('currentCell'), weightedStart);
+assert(elements['trace-heading'].textContent.includes('accumulated cost 0'));
+click('next-step'); assert(elements['trace-message'].textContent.includes('0 + 1 = 1'));
+assert(elements['trace-message'].textContent.includes('Cheaper than ∞'));
+assert(elements['trace-message'].textContent.includes('tentative'));
+let guard = 2000;
+while (read('visualDistances[maze.goal] === undefined') && guard-- > 0) click('next-step');
+assert(guard > 0); assert(read('running')); assert(!read('visualSettled.has(maze.goal)'));
+assert(elements['why-panel'].hidden, 'Explanation appeared when goal was only discovered');
+while (!read('visualSettled.has(maze.goal)') && guard-- > 0) click('next-step');
+assert(elements['trace-message'].textContent.includes('Goal removed from the min-heap'));
+while (read('running') && guard-- > 0) click('next-step');
+assert(guard > 0); assert(!elements['why-panel'].hidden);
+assert.equal(elements['why-breakdown'].textContent, '20 cells × 1 = 20');
+assert.equal(read('distanceLabels[maze.goal].textContent'), 'g:20');
+assert.equal(read('terrainLabels[maze.goal].textContent'), 'G');
+assert.equal(read('endpointLabels[maze.goal].textContent'), '1');
+assert.equal(read('terrainLabels[6 * maze.cols + 7].textContent'), '9');
+elements['show-costs'].checked = false; elements['show-costs'].fire('change');
+assert(read('distanceLabels[maze.goal].hidden'));
+assert.equal(read('terrainLabels[6 * maze.cols + 7].textContent'), '9');
+// Reset cancels a partial manual replay, and Next step cannot revive it.
+click('run'); click('next-step'); click('reset'); elements['next-step'].fire('click');
+assert(!read('running')); assert.equal(pending.size, 0); assert(elements['trace-panel'].hidden);
+elements['step-mode'].checked = false;
+tool('weight'); elements['terrain-cost'].value = '9'; elements['terrain-cost'].fire('change');
+paint(7 * 23 + 6); click('run'); finish();
+assert.equal(elements['metric-cost'].textContent, 28);
+assert.equal(elements['why-breakdown'].textContent, '19 cells × 1 + 1 cell × 9 = 28');
+paint(8 * 23 + 6); assert(elements['why-panel'].hidden);
+click('run'); finish();
+assert.equal(elements['metric-moves'].textContent, 16); assert.equal(elements['metric-cost'].textContent, 30);
+assert.equal(elements['why-breakdown'].textContent, '8 cells × 1 + 6 cells × 2 + 2 cells × 5 = 30');
+assert.equal(read('terrainLabels[3 * maze.cols + 7].textContent'), '2');
+assert(cell(3 * 23 + 7).className.includes('path'));
+for (const cost of ['1', '2', '5', '9']) {
+  elements['terrain-cost'].value = cost; paint(0);
+  assert.equal(read('maze.cells[0]'), Number(cost));
+  assert.equal(read('terrainLabels[0].textContent'), cost);
+}
+assert.equal(read('maze.cells[maze.goal]'), 1);
+console.log('PASS: all existing UI controls, dynamic grid sizes, teaching step mode, tentative/settled labels, goal settlement, weight selector, actual cost breakdown, and edited-route reruns (DOM/timer test doubles).');

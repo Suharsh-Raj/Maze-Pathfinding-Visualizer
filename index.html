@@ -19,7 +19,7 @@
   <main>
     <section class="intro">
       <div><p class="eyebrow">EXPLORE · VISUALIZE · COMPARE</p><h1>Every path tells a different story.</h1><p>Build a maze. Watch the search. Discover what makes a path optimal.</p></div>
-      <div class="grid-facts"><strong>21 × 31</strong><span>cells · 4 directions</span></div>
+      <div class="grid-facts"><strong id="grid-dimensions">21 × 31</strong><span>cells · 4 directions</span></div>
     </section>
     <div class="workspace">
       <aside class="panel controls" aria-label="Maze controls">
@@ -38,12 +38,18 @@
         <div class="control-divider"></div>
         <fieldset><legend>Editing tools</legend><div class="tool-list">
           <button class="tool active" data-tool="wall" aria-pressed="true"><span class="swatch wall"></span>Wall</button>
-          <button class="tool" data-tool="weight" aria-pressed="false"><span class="swatch weight">5</span>Weight</button>
+          <button class="tool" data-tool="weight" aria-pressed="false"><span class="swatch weight" id="weight-swatch">5</span>Weight</button>
           <button class="tool" data-tool="start" aria-pressed="false"><span class="swatch start">S</span>Start</button>
           <button class="tool" data-tool="goal" aria-pressed="false"><span class="swatch goal">G</span>Goal</button>
           <button class="tool eraser" data-tool="erase" aria-pressed="false"><span class="swatch empty"></span>Eraser</button>
         </div></fieldset>
+        <label for="terrain-cost">Weight tool: entry cost</label>
+        <select id="terrain-cost"><option value="1">1 · normal</option><option value="2">2 · light</option><option value="5" selected>5 · heavy</option><option value="9">9 · very heavy</option></select>
         <p class="hint">Click or drag to paint. Select Start or Goal to move an endpoint.</p>
+        <label class="check-label"><input id="show-costs" type="checkbox"> Show accumulated costs (Dijkstra)</label>
+        <p class="hint">Cell number = terrain entry cost. Blue <strong>g:</strong> badge = best-known cost from start; tentative until settled. S = 0, goal entry = 1.</p>
+        <label class="check-label"><input id="step-mode" type="checkbox"> Step-by-step Dijkstra</label>
+        <p class="hint">Select Dijkstra, enable this mode, then Run and use Next step.</p>
         <div class="speed-heading"><label for="speed">Animation speed</label><output id="speed-value" for="speed">Fast</output></div>
         <input id="speed" type="range" min="1" max="100" value="80">
         <div class="range-labels"><span>Slow</span><span>Fast</span></div>
@@ -51,6 +57,7 @@
         <div class="search-actions">
         <button id="run" class="primary">▶ Run search</button>
         <button id="pause" disabled>Ⅱ Pause</button>
+        <button id="next-step" disabled>Next step →</button>
         <div class="button-pair"><button id="reset">Reset Search</button><button id="clear">Clear Grid</button></div>
         <button id="compare" class="compare-button">Compare Algorithms <span aria-hidden="true">↗</span></button>
         </div>
@@ -59,7 +66,11 @@
         <div class="maze-heading"><div><h2>The search space</h2><p id="grid-note">Paint walls to change the journey.</p></div><span id="state-badge" class="state-badge">READY</span></div>
         <div class="grid-scroll"><div id="grid" role="grid" aria-label="Maze editor, 21 rows and 31 columns" aria-describedby="keyboard-help" aria-rowcount="21" aria-colcount="31"></div></div>
         <div class="legend" aria-label="Cell color legend">
-          <span><i class="swatch start">S</i>Start</span><span><i class="swatch goal">G</i>Goal</span><span><i class="swatch wall"></i>Wall</span><span><i class="swatch weight">5</i>Cost 5</span><span><i class="swatch empty"></i>Cost 1</span><span><i class="swatch explored"></i>Explored</span><span><i class="swatch path"></i>Path</span>
+          <span><i class="swatch start">S</i>Start 0</span><span><i class="swatch goal">G</i>Goal 1</span><span><i class="swatch wall"></i>Wall</span><span><i class="swatch empty">1</i>Cost 1</span><span><i class="swatch cost-2">2</i>Cost 2</span><span><i class="swatch weight">5</i>Cost 5</span><span><i class="swatch cost-9">9</i>Cost 9</span><span><i class="swatch explored"></i>Explored</span><span><i class="swatch path"></i>Path</span>
+        </div>
+        <div id="trace-panel" class="trace-panel" hidden aria-live="polite">
+          <strong id="trace-heading">Dijkstra: select the lowest accumulated cost</strong>
+          <p id="trace-message">Run Dijkstra to see how costs are updated.</p>
         </div>
         <div id="status" class="status" role="status" aria-live="polite">Ready when you are. Choose an algorithm and run your first search.</div>
         <div class="metrics" aria-label="Latest search results">
@@ -72,10 +83,16 @@
         <p id="keyboard-help" class="hint grid-help">Keyboard: Tab to the grid, arrows to move, Enter/Space to edit. S/G markers and terrain numbers stay visible.</p>
       </section>
     </div>
+    <section id="why-panel" class="panel why-panel" hidden aria-labelledby="why-title">
+      <h2 id="why-title">Why this path?</h2>
+      <p id="why-summary"></p><p id="why-breakdown" class="cost-equation"></p>
+      <p>Dijkstra minimizes total accumulated entry cost, which can mean taking more moves. The start contributes 0; the goal contributes its entry cost of 1.</p>
+    </section>
     <section class="panel comparison-panel">
       <div class="section-heading"><div><p class="eyebrow">SAME MAZE. DIFFERENT STRATEGIES.</p><h2>Compare the results</h2></div><span class="subtle-tag">COMPUTATION ONLY</span></div>
       <p class="section-copy">Run every algorithm on the current grid without animation. All path costs include terrain weights, even when the search ignores them.</p>
       <div class="table-scroll"><table><thead><tr><th scope="col">Algorithm</th><th scope="col">Path found</th><th scope="col">Moves</th><th scope="col">Cost</th><th scope="col">Expanded</th><th scope="col">Time (ms ≈)</th></tr></thead><tbody id="comparison-body"><tr><td colspan="6" class="table-empty">Your comparison will appear here. Select “Compare Algorithms” to begin.</td></tr></tbody></table></div>
+      <p id="pair-summary" class="pair-summary" hidden></p>
       <p class="method-note"><strong>How we measure:</strong> Expanded means a unique cell removed from the queue, stack, or heap and processed, including the start and the goal if reached. Stale heap entries do not count. Time uses <code>performance.now()</code> around the algorithm only; animation and rendering are excluded. Small-grid timings fluctuate.</p>
     </section>
     <section class="learning" aria-labelledby="learning-title">
@@ -86,7 +103,7 @@
         <article><span class="algo-number">03 / MIN-HEAP</span><h3>Dijkstra’s algorithm</h3><p>Expands the cell with the lowest known cost. A binary min-heap selects the next cell. Guarantees minimum total cost for nonnegative movement costs.</p><code>O((V + E) log V)</code></article>
         <article><span class="algo-number">04 / HEURISTIC + MIN-HEAP</span><h3>A* search</h3><p>Prioritizes cost so far plus Manhattan distance to the goal × minimum cell cost (1). This heuristic is admissible and consistent here, so A* guarantees minimum cost and settles each cell at most once.</p><code>O((V + E) log V)</code></article>
       </div>
-      <p class="education-note"><strong>V</strong> is the number of traversable cells; <strong>E</strong> is the number of connections between neighboring cells. A four-neighbor grid has <strong>E = O(V)</strong>. These are graph-search bounds; this implementation also initializes arrays for all grid cells, including walls. The heap algorithms use lazy duplicate entries; on this grid their worst-case bound is O((V + E) log V). On an equal-cost grid, BFS and Dijkstra have the same optimal path cost, although exploration and tie-breaking can differ. Normal cells cost 1, weighted cells cost 5, and the starting cell costs 0. Neighbor order is always up, right, down, left.</p>
+      <p class="education-note"><strong>V</strong> is the number of traversable cells; <strong>E</strong> is the number of connections between neighboring cells. A four-neighbor grid has <strong>E = O(V)</strong>. These are graph-search bounds; this implementation also initializes arrays for all grid cells, including walls. The heap algorithms use lazy duplicate entries; on this grid their worst-case bound is O((V + E) log V). On an equal-cost grid, BFS and Dijkstra have the same optimal path cost, although exploration and tie-breaking can differ. Entry costs are 1, 2, 5, and 9; the start costs 0 and the goal has entry cost 1. Neighbor order is always up, right, down, left.</p>
     </section>
     <footer><span>PATHFINDER / DAA ALGORITHM LAB</span><span>Plain JavaScript. A little curiosity. A better path.</span></footer>
   </main>

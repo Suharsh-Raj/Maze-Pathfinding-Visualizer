@@ -1,8 +1,8 @@
 /* Optional developer checks: node tests/algorithms.test.js (no packages needed). */
 'use strict';
 const assert = require('node:assert/strict');
-const { algorithms, MinHeap } = require('../algorithms.js');
-const { createGrid } = require('../demos.js');
+const { algorithms, MinHeap } = require('./algorithms.js');
+const { createGrid } = require('./demos.js');
 
 // Independent Bellman-Ford oracle. Build edges directly, without using the
 // application's neighbors or heap, to check both move and weighted optima.
@@ -66,10 +66,10 @@ function verify(grid) {
 
 for (const name of ['empty', 'routes', 'weighted', 'unreachable']) verify(createGrid(name));
 const weighted = createGrid('weighted');
-assert.equal(algorithms.BFS(weighted).moves, 21);
-assert.equal(algorithms.BFS(weighted).cost, 101);
-assert.equal(algorithms.Dijkstra(weighted).moves, 31);
-assert.equal(algorithms.Dijkstra(weighted).cost, 31);
+assert.equal(algorithms.BFS(weighted).moves, 10);
+assert.equal(algorithms.BFS(weighted).cost, 70);
+assert.equal(algorithms.Dijkstra(weighted).moves, 20);
+assert.equal(algorithms.Dijkstra(weighted).cost, 20);
 for (const name of ['empty', 'routes']) {
   const grid = createGrid(name);
   assert.equal(algorithms.BFS(grid).cost, algorithms.Dijkstra(grid).cost);
@@ -84,7 +84,7 @@ function random() { seed = (1664525 * seed + 1013904223) >>> 0; return seed / 42
 for (let example = 0; example < 200; example++) {
   const rows = 2 + Math.floor(random() * 6), cols = 2 + Math.floor(random() * 6);
   const cells = Array.from({ length: rows * cols }, () => {
-    const choice = random(); return choice < 0.28 ? -1 : choice < 0.55 ? 5 : 1;
+    const choice = random(); return choice < 0.28 ? -1 : [1, 2, 5, 9][Math.floor(random() * 4)];
   });
   const start = Math.floor(random() * cells.length);
   const goal = (start + 1 + Math.floor(random() * (cells.length - 1))) % cells.length;

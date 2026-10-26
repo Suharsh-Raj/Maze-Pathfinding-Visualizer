@@ -1,10 +1,11 @@
-/* Deterministic examples. -1 = wall, 1 = normal, 5 = weighted terrain. */
+/* Deterministic examples. -1 = wall; traversable entry costs are 1, 2, 5, 9. */
 (function (root) {
   'use strict';
   const generator = typeof module !== 'undefined' && module.exports
     ? require('./maze-generation.js') : root.MazeGeneration;
 
   function createGrid(example = 'empty') {
+    if (example === 'weighted') return createWeightedGrid();
     const rows = 21, cols = 31;
     const cells = Array(rows * cols).fill(1);
     const grid = { rows, cols, cells, start: 10 * cols + 4, goal: 10 * cols + 25 };
@@ -13,31 +14,7 @@
       return generator.generateMaze('medium', generator.createSeededRandom(1729));
     }
 
-    if (example === 'weighted') {
-      cells.fill(-1);
-      // The direct corridor: 21 moves, including 20 expensive cells; cost 101.
-      // The upper detour: 5 + 21 + 5 = 31 normal moves; cost 31.
-      for (let col = 4; col <= 25; col++) {
-        cells[10 * cols + col] = col > 4 && col < 25 ? 5 : 1;
-        cells[5 * cols + col] = 1;
-      }
-      for (let row = 5; row <= 10; row++) {
-        cells[row * cols + 4] = 1;
-        cells[row * cols + 25] = 1;
-      }
-      // Bent dead-end branches add junctions without adding another S–G route.
-      for (let row = 2; row <= 4; row++) cells[row * cols + 9] = 1;
-      for (let col = 9; col <= 14; col++) cells[2 * cols + col] = 1;
-      for (let row = 2; row <= 4; row++) cells[row * cols + 20] = 1;
-      for (let col = 17; col <= 20; col++) cells[2 * cols + col] = 1;
-      for (let row = 11; row <= 16; row++) cells[row * cols + 7] = 1;
-      for (let col = 3; col <= 7; col++) cells[16 * cols + col] = 1;
-      for (let row = 11; row <= 14; row++) cells[row * cols + 16] = 1;
-      for (let col = 16; col <= 21; col++) cells[14 * cols + col] = 1;
-      for (let row = 14; row <= 18; row++) cells[row * cols + 21] = 1;
-      for (let col = 26; col <= 28; col++) cells[8 * cols + col] = 1;
-      for (let row = 8; row <= 12; row++) cells[row * cols + 28] = 1;
-    } else if (example === 'unreachable') {
+    if (example === 'unreachable') {
       const blocked = generator.generateMaze('medium', generator.createSeededRandom(31415));
       // Deliberately isolated goal; this preset is distinct from generated mazes.
       for (const id of [blocked.goal - cols, blocked.goal + 1, blocked.goal + cols, blocked.goal - 1]) {
@@ -47,6 +24,27 @@
       return blocked;
     }
     return grid;
+  }
+
+  function createWeightedGrid() {
+    // Exactly three internally disjoint S–G corridors. Everything else stays
+    // walled: adjacent routes cannot accidentally create a shortcut.
+    const rows = 15, cols = 23, cells = Array(rows * cols).fill(-1);
+    const start = 6 * cols + 6, goal = 6 * cols + 16;
+    for (let col = 6; col <= 16; col++) {
+      cells[6 * cols + col] = col === 6 || col === 16 ? 1 : (col % 3 === 0 ? 5 : 9);
+      cells[3 * cols + col] = 1;
+      cells[11 * cols + col] = 1;
+    }
+    for (let row = 3; row <= 11; row++) {
+      cells[row * cols + 6] = 1;
+      cells[row * cols + 16] = 1;
+    }
+    // Top: medium distance, mixed terrain. Bottom: long but all cost 1.
+    for (let col = 7; col <= 12; col++) cells[3 * cols + col] = 2;
+    cells[3 * cols + 13] = 5;
+    cells[3 * cols + 14] = 5;
+    return { rows, cols, cells, start, goal };
   }
   const api = { createGrid };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

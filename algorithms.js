@@ -101,7 +101,7 @@
   }
 
   // A* shares Dijkstra's relaxation logic; only the heap priority changes.
-  function lowestCost(grid, useHeuristic = false) {
+  function lowestCost(grid, useHeuristic = false, trace = null) {
     const parents = Array(grid.cells.length).fill(-1);
     const distance = Array(grid.cells.length).fill(Infinity);
     const settled = new Set(), expanded = [], heap = new MinHeap();
@@ -114,17 +114,25 @@
     }
     distance[grid.start] = 0;
     heap.push(grid.start, heuristic(grid.start), 0);
+    if (trace) trace.push({ type: 'discover', id: grid.start, distance: 0 });
     while (heap.size) {
       const entry = heap.pop(), current = entry.id;
       // An improved distance gets a new heap entry. Ignore outdated entries.
       if (settled.has(current) || entry.distance !== distance[current]) continue;
       settled.add(current);
       expanded.push(current);
+      if (trace) trace.push({ type: 'settle', id: current, distance: distance[current], goal: current === grid.goal });
+      // Success only after a non-stale goal entry is removed from the heap.
       if (current === grid.goal) return finish(grid, parents, expanded, true);
       for (const next of neighbors(grid, current)) {
         if (settled.has(next)) continue;
         const candidate = distance[current] + grid.cells[next];
-        if (candidate < distance[next]) {
+        const previous = distance[next], updated = candidate < previous;
+        if (trace) trace.push({
+          type: 'relax', from: current, id: next, currentDistance: distance[current],
+          entryCost: grid.cells[next], candidate, previous, updated
+        });
+        if (updated) {
           distance[next] = candidate;
           parents[next] = current;
           heap.push(next, candidate + heuristic(next), candidate);
@@ -134,13 +142,29 @@
     return finish(grid, parents, expanded, false);
   }
 
+  // Educational recording is optional and never changes the search rules.
+  // The UI records this separately from the timed pure algorithm run.
+  function traceDijkstra(grid) {
+    const events = [];
+    const result = lowestCost(grid, false, events);
+    return { result, events };
+  }
+
+  function pathBreakdown(grid, path) {
+    const counts = {};
+    for (const id of path.slice(1)) counts[grid.cells[id]] = (counts[grid.cells[id]] || 0) + 1;
+    const terms = Object.keys(counts).map(Number).sort((a, b) => a - b)
+      .map(cost => ({ cost, count: counts[cost] }));
+    return { moves: Math.max(0, path.length - 1), cost: terms.reduce((sum, term) => sum + term.cost * term.count, 0), terms };
+  }
+
   const algorithms = {
     BFS: breadthFirst,
     DFS: depthFirst,
     Dijkstra: grid => lowestCost(grid),
     'A*': grid => lowestCost(grid, true)
   };
-  const api = { algorithms, neighbors, MinHeap };
+  const api = { algorithms, neighbors, MinHeap, traceDijkstra, pathBreakdown };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Pathfinding = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

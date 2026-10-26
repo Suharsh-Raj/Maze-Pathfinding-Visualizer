@@ -481,7 +481,7 @@ input[type=range] {
 
 .grid-row {
   display:grid;
-  grid-template-columns:repeat(31,minmax(0,1fr));
+  grid-template-columns:repeat(var(--columns, 31),minmax(0,1fr));
 }
 
 .cell {
@@ -736,6 +736,45 @@ footer {
   font-size:10px;
   color:var(--muted);
 }
+
+/* Terrain labels survive every search overlay; accumulated costs are a
+   separate blue badge, never a replacement for a cell's entry cost. */
+[hidden] { display:none !important; }
+.cell { position:relative; color:#263c43; }
+.terrain-label { pointer-events:none; font-size:12px; line-height:1; }
+.endpoint-entry { position:absolute; left:2px; top:1px; font-size:8px; pointer-events:none; }
+.distance-label {
+  position:absolute; right:0; bottom:0; max-width:100%;
+  background:#e1f0ff; color:#173f71; border-radius:2px;
+  font:700 8px/1.15 Consolas,monospace; padding:0 1px; pointer-events:none;
+}
+.grid-scroll.show-distances { width:min(100%,760px); }
+.show-distances #grid { min-width:calc(var(--columns) * 24px); }
+.show-distances .terrain-label {
+  position:absolute; top:2px; left:50%; transform:translateX(-50%); font-size:11px;
+}
+.cell.settled .distance-label { background:#214b75; color:white; }
+.cell.cost-2, .swatch.cost-2 { background:#e8eacb; color:#3c4927; }
+.cell.cost-9, .swatch.cost-9 { background:#ead3d9; color:#603444; }
+.cell.explored { background:var(--explored); color:#173f4c; }
+.cell.path { background:var(--path); color:#4c3706; }
+.cell.start { background:#188466; color:white; }
+.cell.goal { background:#b75269; color:white; }
+.cell.current { outline:3px solid #155dca; outline-offset:-3px; z-index:1; }
+.cell.neighbor { box-shadow:inset 0 0 0 2px #915ac7; }
+.check-label { display:flex; align-items:center; gap:6px; margin-top:10px; font-size:11px; }
+.check-label input { accent-color:var(--green); margin:0; }
+#terrain-cost { margin-top:2px; }
+#next-step { grid-column:1 / -1; color:#155b96; }
+.grid-scroll {
+  width:min(100%, max(360px, calc(var(--viewport-width, 147.619vh) - var(--reserved-width, 502px))), 740px);
+}
+.trace-panel { margin-top:10px; padding:10px; background:#eef4fa; border:1px solid #d4e1ee; border-radius:5px; font-size:12px; line-height:1.6; }
+.trace-panel p { margin:4px 0 0; }
+.why-panel { margin-top:16px; padding:18px 22px; font-size:13px; line-height:1.6; }
+.why-panel p { margin:8px 0 0; }
+.cost-equation { font-family:Consolas,monospace; color:#12553f; font-weight:600; }
+.pair-summary { font-size:12px; line-height:1.7; padding:10px 12px; background:#edf4ee; border-left:3px solid var(--green); }
 
 @media (min-width:1450px) {
   main {

@@ -1,9 +1,9 @@
 /* Optional developer checks: node tests/maze-generation.test.js (no packages needed). */
 'use strict';
 const assert = require('node:assert/strict');
-const { generateMaze } = require('../maze-generation.js');
-const { algorithms } = require('../algorithms.js');
-const { createGrid } = require('../demos.js');
+const { generateMaze } = require('./maze-generation.js');
+const { algorithms } = require('./algorithms.js');
+const { createGrid } = require('./demos.js');
 
 function seededRandom(initialSeed) {
   let seed = initialSeed >>> 0;
@@ -155,10 +155,10 @@ assert(summaries.medium.averageLoops > summaries.hard.averageLoops);
 const weighted = createGrid('weighted');
 const beforeComparison = JSON.stringify(weighted);
 const bfs = algorithms.BFS(weighted), dijkstra = algorithms.Dijkstra(weighted);
-assert.equal(bfs.moves, 21);
-assert.equal(bfs.cost, 101);
-assert.equal(dijkstra.moves, 31);
-assert.equal(dijkstra.cost, 31);
+assert.equal(bfs.moves, 10);
+assert.equal(bfs.cost, 70);
+assert.equal(dijkstra.moves, 20);
+assert.equal(dijkstra.cost, 20);
 assert(bfs.moves < dijkstra.moves && bfs.cost > dijkstra.cost);
 assert(hasAlternativeEndpointRoute(weighted, explore(weighted).path));
 assert.equal(JSON.stringify(weighted), beforeComparison, 'Weighted comparison must not change terrain');
