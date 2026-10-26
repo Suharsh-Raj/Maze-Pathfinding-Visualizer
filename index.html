@@ -38,18 +38,11 @@
         <div class="control-divider"></div>
         <fieldset><legend>Editing tools</legend><div class="tool-list">
           <button class="tool active" data-tool="wall" aria-pressed="true"><span class="swatch wall"></span>Wall</button>
-          <button class="tool" data-tool="weight" aria-pressed="false"><span class="swatch weight" id="weight-swatch">5</span>Weight</button>
           <button class="tool" data-tool="start" aria-pressed="false"><span class="swatch start">S</span>Start</button>
           <button class="tool" data-tool="goal" aria-pressed="false"><span class="swatch goal">G</span>Goal</button>
           <button class="tool eraser" data-tool="erase" aria-pressed="false"><span class="swatch empty"></span>Eraser</button>
         </div></fieldset>
-        <label for="terrain-cost">Weight tool: entry cost</label>
-        <select id="terrain-cost"><option value="1">1 · normal</option><option value="2">2 · light</option><option value="5" selected>5 · heavy</option><option value="9">9 · very heavy</option></select>
         <p class="hint">Click or drag to paint. Select Start or Goal to move an endpoint.</p>
-        <label class="check-label"><input id="show-costs" type="checkbox"> Show accumulated costs (Dijkstra)</label>
-        <p class="hint">Cell number = terrain entry cost. Blue <strong>g:</strong> badge = best-known cost from start; tentative until settled. S = 0, goal entry = 1.</p>
-        <label class="check-label"><input id="step-mode" type="checkbox"> Step-by-step Dijkstra</label>
-        <p class="hint">Select Dijkstra, enable this mode, then Run and use Next step.</p>
         <div class="speed-heading"><label for="speed">Animation speed</label><output id="speed-value" for="speed">Fast</output></div>
         <input id="speed" type="range" min="1" max="100" value="80">
         <div class="range-labels"><span>Slow</span><span>Fast</span></div>
@@ -57,7 +50,6 @@
         <div class="search-actions">
         <button id="run" class="primary">▶ Run search</button>
         <button id="pause" disabled>Ⅱ Pause</button>
-        <button id="next-step" disabled>Next step →</button>
         <div class="button-pair"><button id="reset">Reset Search</button><button id="clear">Clear Grid</button></div>
         <button id="compare" class="compare-button">Compare Algorithms <span aria-hidden="true">↗</span></button>
         </div>
@@ -68,10 +60,6 @@
         <div class="legend" aria-label="Cell color legend">
           <span><i class="swatch start">S</i>Start 0</span><span><i class="swatch goal">G</i>Goal 1</span><span><i class="swatch wall"></i>Wall</span><span><i class="swatch empty">1</i>Cost 1</span><span><i class="swatch cost-2">2</i>Cost 2</span><span><i class="swatch weight">5</i>Cost 5</span><span><i class="swatch cost-9">9</i>Cost 9</span><span><i class="swatch explored"></i>Explored</span><span><i class="swatch path"></i>Path</span>
         </div>
-        <div id="trace-panel" class="trace-panel" hidden aria-live="polite">
-          <strong id="trace-heading">Dijkstra: select the lowest accumulated cost</strong>
-          <p id="trace-message">Run Dijkstra to see how costs are updated.</p>
-        </div>
         <div id="status" class="status" role="status" aria-live="polite">Ready when you are. Choose an algorithm and run your first search.</div>
         <div class="metrics" aria-label="Latest search results">
           <div><span>Algorithm / result</span><strong id="metric-algorithm">—</strong><small id="metric-found">No search yet</small></div>
@@ -80,7 +68,7 @@
           <div><span>Cells expanded</span><strong id="metric-expanded">—</strong><small>unique cells</small></div>
           <div><span>Compute time</span><strong id="metric-time">—</strong><small>ms · approximate</small></div>
         </div>
-        <p id="keyboard-help" class="hint grid-help">Keyboard: Tab to the grid, arrows to move, Enter/Space to edit. S/G markers and terrain numbers stay visible.</p>
+        <p id="keyboard-help" class="hint grid-help">Keyboard: Tab to the grid, arrows to move, Enter/Space to edit.</p>
       </section>
     </div>
     <section id="why-panel" class="panel why-panel" hidden aria-labelledby="why-title">

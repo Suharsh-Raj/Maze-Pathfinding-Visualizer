@@ -7,9 +7,8 @@ let running = false, paused = false, drawing = false;
 let timer = null, animationVersion = 0, frames = [], frameIndex = 0;
 let currentResult = null, focusCell = maze.start;
 const cellButtons = [];
-const terrainLabels = [], endpointLabels = [], distanceLabels = [];
-let renderedCols = 0, visualDistances = [], visualSettled = new Set();
-let manualStepping = false, currentCell = null, neighborCell = null, expandedShown = 0;
+const terrainLabels = [], endpointLabels = [];
+let renderedCols = 0, weightedDemoLoaded = false, expandedShown = 0;
 const hints = {
   BFS: 'Shortest route by number of moves.',
   DFS: 'A valid route, without an optimality guarantee.',
@@ -30,7 +29,7 @@ const difficultyHints = {
 
 function buildGrid() {
   cellButtons.length = 0;
-  terrainLabels.length = 0; endpointLabels.length = 0; distanceLabels.length = 0;
+  terrainLabels.length = 0; endpointLabels.length = 0;
   renderedCols = maze.cols;
   focusCell = maze.start;
   $('grid').replaceChildren();
@@ -42,7 +41,6 @@ function buildGrid() {
   $('grid').parentElement.style.setProperty('--grid-ratio', maze.cols / maze.rows);
   $('grid').parentElement.style.setProperty('--viewport-width', `${100 * maze.cols / maze.rows}vh`);
   $('grid').parentElement.style.setProperty('--reserved-width', `${340 * maze.cols / maze.rows}px`);
-  $('grid').parentElement.classList.toggle('show-distances', $('show-costs').checked);
   const fragment = document.createDocumentFragment();
   for (let row = 0; row < maze.rows; row++) {
     const rowElement = document.createElement('div');
@@ -59,9 +57,8 @@ function buildGrid() {
       button.tabIndex = id === focusCell ? 0 : -1;
       const terrain = document.createElement('span'); terrain.className = 'terrain-label';
       const endpoint = document.createElement('span'); endpoint.className = 'endpoint-entry';
-      const accumulated = document.createElement('span'); accumulated.className = 'distance-label';
-      button.append(terrain, endpoint, accumulated);
-      terrainLabels.push(terrain); endpointLabels.push(endpoint); distanceLabels.push(accumulated);
+      button.append(terrain, endpoint);
+      terrainLabels.push(terrain); endpointLabels.push(endpoint);
       cellButtons.push(button);
       rowElement.append(button);
     }
@@ -77,19 +74,16 @@ function paintCell(id) {
   if (id === maze.start) type = 'start';
   if (id === maze.goal) type = 'goal';
   button.className = 'cell ' + type + (type === 'weight' ? ` cost-${maze.cells[id]}` : '');
-  terrainLabels[id].textContent = type === 'start' ? 'S' : type === 'goal' ? 'G' : type === 'wall' ? '' : String(maze.cells[id]);
-  endpointLabels[id].hidden = type !== 'start' && type !== 'goal';
-  endpointLabels[id].textContent = type === 'start' ? '0' : '1';
-  updateDistanceLabel(id);
-}
-function updateDistanceLabel(id) {
-  const distance = visualDistances[id];
-  distanceLabels[id].hidden = !$('show-costs').checked || distance === undefined;
-  distanceLabels[id].textContent = distance === undefined ? '' : `g:${distance}`;
-  const kind = visualSettled.has(id) ? 'settled' : 'tentative';
+  updateTerrainLabel(id);
   const entry = id === maze.start ? 'start, cost 0' : id === maze.goal ? 'goal, entry cost 1' : maze.cells[id] === -1 ? 'wall' : `entry cost ${maze.cells[id]}`;
-  cellButtons[id].setAttribute('aria-label', `Row ${Math.floor(id / maze.cols) + 1}, column ${id % maze.cols + 1}: ${entry}${distance === undefined ? '' : `, ${kind} accumulated cost ${distance}`}`);
-  distanceLabels[id].title = `${kind} accumulated cost from start`;
+  button.setAttribute('aria-label', `Row ${Math.floor(id / maze.cols) + 1}, column ${id % maze.cols + 1}: ${entry}`);
+}
+function updateTerrainLabel(id) {
+  const showWeights = weightedDemoLoaded && $('demo').value === 'weighted';
+  const isStart = id === maze.start, isGoal = id === maze.goal;
+  terrainLabels[id].textContent = isStart ? 'S' : isGoal ? 'G' : showWeights && maze.cells[id] !== -1 ? String(maze.cells[id]) : '';
+  endpointLabels[id].hidden = !showWeights || (!isStart && !isGoal);
+  endpointLabels[id].textContent = showWeights && (isStart || isGoal) ? (isStart ? '0' : '1') : '';
 }
 function paintGrid() {
   if (cellButtons.length !== maze.cells.length || renderedCols !== maze.cols) { buildGrid(); return; }
@@ -97,12 +91,10 @@ function paintGrid() {
 }
 function status(message, badge = 'READY') { $('status').textContent = message; $('state-badge').textContent = badge; }
 function setControls() {
-  for (const id of ['algorithm', 'demo', 'load-demo', 'difficulty', 'generate', 'run', 'compare', 'terrain-cost', 'step-mode']) $(id).disabled = running;
-  $('step-mode').disabled = running || $('algorithm').value !== 'Dijkstra';
+  for (const id of ['algorithm', 'demo', 'load-demo', 'difficulty', 'generate', 'run', 'compare']) $(id).disabled = running;
   document.querySelectorAll('.tool').forEach(button => { button.disabled = running; });
   cellButtons.forEach(button => { button.disabled = running; });
-  $('pause').disabled = !running || manualStepping;
-  $('next-step').disabled = !running || !manualStepping;
+  $('pause').disabled = !running;
   $('pause').textContent = paused ? '▶ Resume' : 'Ⅱ Pause';
   $('grid-note').textContent = running ? 'Maze editing is locked while a search is active.' : 'Paint walls to change the journey.';
 }
@@ -123,9 +115,8 @@ function resetSearch(message = 'Search reset. Your maze is preserved.') {
   timer = null;
   running = false; paused = false; drawing = false;
   frames = []; frameIndex = 0; currentResult = null;
-  manualStepping = false; currentCell = null; neighborCell = null; expandedShown = 0;
-  visualDistances = []; visualSettled = new Set();
-  $('why-panel').hidden = true; $('trace-panel').hidden = true;
+  expandedShown = 0;
+  $('why-panel').hidden = true;
   $('pair-summary').hidden = true;
   paintGrid(); clearMetrics(); setControls(); status(message);
 }
@@ -133,7 +124,7 @@ function resetSearch(message = 'Search reset. Your maze is preserved.') {
 function editCell(id) {
   if (running || !Number.isInteger(id) || id < 0 || id >= maze.cells.length) return;
   if (id === maze.start || id === maze.goal) return;
-  const value = selectedTool === 'wall' ? -1 : selectedTool === 'weight' ? Number($('terrain-cost').value) : 1;
+  const value = selectedTool === 'wall' ? -1 : 1;
   if (!['start', 'goal'].includes(selectedTool) && maze.cells[id] === value) return;
   // Clear stale search/comparison data when the underlying maze changes.
   if (currentResult) resetSearch('Maze updated. Ready for another search.');
@@ -185,55 +176,8 @@ function showPairSummary(grid, bfs, dijkstra) {
   $('pair-summary').textContent = `Same unchanged maze — BFS: ${bfs.moves} moves, cost ${bfs.cost}; Dijkstra: ${dijkstra.moves} moves, cost ${dijkstra.cost}. ${difference}`;
 }
 
-// Ordinary animation groups each settlement with its neighbor updates. Step
-// mode keeps each relaxation separate so every candidate calculation is visible.
-function dijkstraFrames(events, detailed) {
-  if (detailed) return events;
-  const grouped = [];
-  for (const event of events) {
-    if (event.type !== 'relax') grouped.push({ ...event, updates: [] });
-    else grouped[grouped.length - 1].updates.push(event);
-  }
-  return grouped;
-}
-function applyRelaxation(event) {
-  if (event.updated) { visualDistances[event.id] = event.candidate; updateDistanceLabel(event.id); }
-}
-function describeCell(id) { return `(${Math.floor(id / maze.cols) + 1}, ${id % maze.cols + 1})`; }
-function renderFrame(frame) {
-  if (neighborCell !== null) cellButtons[neighborCell].classList.toggle('neighbor', false);
-  neighborCell = null;
-  if (frame.type === 'discover') {
-    visualDistances[frame.id] = frame.distance; updateDistanceLabel(frame.id);
-    $('trace-message').textContent = 'Initialize the start at accumulated cost 0. All other distances are infinity until discovered. Next, remove the lowest-cost heap entry.';
-  } else if (frame.type === 'settle') {
-    if (currentCell !== null) cellButtons[currentCell].classList.toggle('current', false);
-    currentCell = frame.id; expandedShown++;
-    visualDistances[frame.id] = frame.distance; visualSettled.add(frame.id);
-    cellButtons[frame.id].classList.add('explored'); cellButtons[frame.id].classList.add('settled');
-    cellButtons[frame.id].classList.add('current'); updateDistanceLabel(frame.id);
-    for (const update of frame.updates || []) applyRelaxation(update);
-    $('trace-heading').textContent = `Current cell ${describeCell(frame.id)} · accumulated cost ${frame.distance}`;
-    $('trace-message').textContent = frame.goal
-      ? `Goal removed from the min-heap with its current best distance ${frame.distance}. It is now settled: stop successfully and reconstruct the path.`
-      : 'This is the lowest accumulated cost in the priority queue. Settle it, then test each unsettled neighbor. Next selection again uses the lowest accumulated cost.';
-  } else if (frame.type === 'relax') {
-    neighborCell = frame.id; cellButtons[frame.id].classList.add('neighbor');
-    applyRelaxation(frame);
-    const before = Number.isFinite(frame.previous) ? frame.previous : '∞';
-    const outcome = frame.updated
-      ? `Cheaper than ${before}: update this neighbor to ${frame.candidate}, remember its parent, and insert it into the heap. This distance is tentative until settled.`
-      : `Not cheaper than the existing ${before}: keep its distance and parent.`;
-    $('trace-message').textContent = `Neighbor ${describeCell(frame.id)}: candidate cost = current accumulated cost + neighbor entry cost = ${frame.currentDistance} + ${frame.entryCost} = ${frame.candidate}. ${outcome} After checking neighbors, select the lowest accumulated cost.`;
-  } else {
-    cellButtons[frame.id].classList.add(frame.type);
-    if (frame.type === 'explored') expandedShown++;
-  }
-}
 function completeSearch() {
   running = false; timer = null;
-  if (currentCell !== null) cellButtons[currentCell].classList.toggle('current', false);
-  if (neighborCell !== null) cellButtons[neighborCell].classList.toggle('neighbor', false);
   setControls(); showResult(currentResult);
   if (currentResult.name === 'BFS' || currentResult.name === 'Dijkstra') {
     const grid = snapshot();
@@ -253,10 +197,10 @@ function animate(version) {
     return;
   }
   const frame = frames[frameIndex++];
-  renderFrame(frame);
-  status(frame.type === 'path' ? 'Path found. Tracing the final route…' : `${manualStepping ? 'Step ' + frameIndex + ' · ' : ''}Exploring with ${currentResult.name}… ${expandedShown} cells expanded.`, frame.type === 'path' ? 'TRACING' : manualStepping ? 'STEP MODE' : 'RUNNING');
+  cellButtons[frame.id].classList.add(frame.type);
+  if (frame.type === 'explored') expandedShown++;
+  status(frame.type === 'path' ? 'Path found. Tracing the final route…' : `Exploring with ${currentResult.name}… ${expandedShown} cells expanded.`, frame.type === 'path' ? 'TRACING' : 'RUNNING');
   if (frameIndex === frames.length) { completeSearch(); return; }
-  if (manualStepping) return; // Next step advances one recorded event; no timer.
   // Slow the final trace slightly so the route is readable even at high speed.
   const delay = frame.type === 'path' ? Math.max(16, animationDelay() * 1.5) : animationDelay();
   timer = setTimeout(() => animate(version), delay);
@@ -265,13 +209,8 @@ function runSearch() {
   if (running) return;
   resetSearch();
   currentResult = compute($('algorithm').value, snapshot());
-  manualStepping = currentResult.name === 'Dijkstra' && $('step-mode').checked;
-  const searchFrames = currentResult.name === 'Dijkstra'
-    ? dijkstraFrames(Pathfinding.traceDijkstra(snapshot()).events, manualStepping)
-    : currentResult.expanded.map(id => ({ id, type: 'explored' }));
+  const searchFrames = currentResult.expanded.map(id => ({ id, type: 'explored' }));
   frames = searchFrames.concat(currentResult.path.map(id => ({ id, type: 'path' })));
-  $('trace-panel').hidden = currentResult.name !== 'Dijkstra';
-  $('trace-heading').textContent = 'Dijkstra: select the lowest accumulated cost';
   running = true; setControls(); animate(animationVersion);
 }
 function compareAlgorithms() {
@@ -292,9 +231,8 @@ function compareAlgorithms() {
 
 $('run').addEventListener('click', runSearch);
 $('compare').addEventListener('click', compareAlgorithms);
-$('next-step').addEventListener('click', () => { if (running && manualStepping) animate(animationVersion); });
 $('pause').addEventListener('click', () => {
-  if (!running || manualStepping) return;
+  if (!running) return;
   paused = !paused;
   clearTimeout(timer); timer = null; setControls();
   if (paused) status('Paused. Resume to continue, or reset the search.', 'PAUSED');
@@ -305,27 +243,26 @@ $('generate').addEventListener('click', () => {
   if (running) return;
   const difficulty = $('difficulty').value;
   maze = MazeGeneration.generateMaze(difficulty);
+  weightedDemoLoaded = false;
   const label = difficulty[0].toUpperCase() + difficulty.slice(1);
   resetSearch(`${label} maze generated with randomized DFS backtracking. A route and alternatives are available.`);
   clearComparison();
   $('demo-description').textContent = `${label} generated maze · ${maze.generation.loopsAdded} extra connections. Demo choices load separate examples.`;
 });
 $('clear').addEventListener('click', () => {
+  weightedDemoLoaded = false;
   maze = MazeDemos.createGrid(); resetSearch('Grid cleared. Default endpoints restored.'); clearComparison();
   $('demo').value = 'empty'; $('demo-description').textContent = demoDescriptions.empty;
 });
 $('load-demo').addEventListener('click', () => {
   if (running) return;
   maze = MazeDemos.createGrid($('demo').value);
+  weightedDemoLoaded = $('demo').value === 'weighted';
   resetSearch('Demo loaded. Choose an algorithm and run the search.'); clearComparison();
   $('demo-description').textContent = demoDescriptions[$('demo').value];
 });
 $('algorithm').addEventListener('change', () => { $('algorithm-hint').textContent = hints[$('algorithm').value]; setControls(); });
-$('terrain-cost').addEventListener('change', () => { $('weight-swatch').textContent = $('terrain-cost').value; });
-$('show-costs').addEventListener('change', () => {
-  $('grid').parentElement.classList.toggle('show-distances', $('show-costs').checked);
-  cellButtons.forEach((_, id) => updateDistanceLabel(id));
-});
+$('demo').addEventListener('change', () => { cellButtons.forEach((_, id) => updateTerrainLabel(id)); });
 $('difficulty').addEventListener('change', () => { $('difficulty-hint').textContent = difficultyHints[$('difficulty').value]; });
 $('speed').addEventListener('input', () => {
   const value = Number($('speed').value);

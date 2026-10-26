@@ -42,7 +42,7 @@ class Element {
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const elements = Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(match => [match[1], new Element()]));
 assert.equal(Object.keys(elements).length, [...html.matchAll(/id="([^"]+)"/g)].length, 'Duplicate HTML IDs');
-const tools = ['wall', 'weight', 'start', 'goal', 'erase'].map(name => {
+const tools = ['wall', 'start', 'goal', 'erase'].map(name => {
   const element = new Element('button'); element.dataset.tool = name; return element;
 });
 elements.grid.parentElement = new Element();
@@ -64,7 +64,6 @@ const context = vm.createContext({
 });
 elements.algorithm.value = 'BFS'; elements.demo.value = 'routes'; elements.speed.value = '80';
 elements.difficulty.value = 'medium';
-elements['terrain-cost'].value = '5';
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'script.js'), 'utf8'), context);
 const read = expression => vm.runInContext(expression, context);
 const state = () => read('JSON.stringify(maze)');
@@ -84,17 +83,58 @@ function finish() {
 }
 function load(name) { elements.demo.value = name; click('load-demo'); }
 
+function verifyLabelVisibility() {
+  function noNumbers() {
+    assert(read('terrainLabels.every(label => !/[0-9]/.test(label.textContent))'));
+    assert(read('endpointLabels.every(label => label.hidden && label.textContent === "")'));
+    assert(read('cellButtons.every(button => button.children.length === 2)'), 'No cost badge nodes remain');
+  }
+  function weightedNumbers() {
+    assert(read('maze.cells.every((cost, id) => id === maze.start || id === maze.goal || terrainLabels[id].textContent === (cost === -1 ? "" : String(cost)))'));
+  }
+  for (const id of ['terrain-cost', 'show-costs', 'step-mode', 'next-step', 'trace-panel']) assert(!elements[id]);
+  assert(!html.includes('data-tool="weight"'));
+  for (const demo of ['routes', 'empty', 'unreachable']) { load(demo); noNumbers(); assert(read('maze.cells.every(cost => cost === -1 || cost === 1)')); }
+  for (const difficulty of ['easy', 'medium', 'hard']) {
+    elements.difficulty.value = difficulty; click('generate'); noNumbers();
+    assert(read('maze.cells.every(cost => cost === -1 || cost === 1)'));
+  }
+  for (const demo of ['routes', 'weighted']) {
+    load(demo);
+    for (const name of Object.keys(Pathfinding.algorithms)) {
+      elements.algorithm.value = name; click('run'); tick();
+      if (demo === 'weighted') weightedNumbers(); else noNumbers();
+      finish(); assert.equal(elements['metric-found'].textContent, 'Path found');
+      if (demo === 'weighted') weightedNumbers(); else noNumbers();
+    }
+  }
+  const weights = state();
+  const pathCells = read('cellButtons.filter(button => button.className.includes("path")).length');
+  elements.demo.value = 'routes'; elements.demo.fire('change'); noNumbers();
+  assert.equal(state(), weights, 'Selection does not edit terrain');
+  assert.equal(read('cellButtons.filter(button => button.className.includes("path")).length'), pathCells);
+  click('load-demo'); noNumbers();
+  // Selecting weighted before loading must not put numbers on a normal maze.
+  elements.demo.value = 'weighted'; elements.demo.fire('change'); noNumbers();
+  click('load-demo'); weightedNumbers();
+  click('generate'); noNumbers();
+  load('weighted'); weightedNumbers(); click('clear'); noNumbers();
+}
+if (process.argv.includes('--labels-only')) {
+  verifyLabelVisibility();
+  console.log('PASS: normal/generated mazes have no numbers, weighted labels survive ordinary searches, and switching/clearing removes stale labels.');
+  process.exit(0);
+}
+
 assert.equal(read('cellButtons.length'), 651);
 assert.equal(read('cellButtons.filter(button => button.tabIndex === 0).length'), 1);
 const { start: defaultStart, goal: defaultGoal } = MazeDemos.createGrid('empty');
 const initialStart = read('maze.start'), initialGoal = read('maze.goal');
 const original = state();
 tool('wall'); paint(initialStart); paint(initialGoal);
-tool('weight'); paint(initialStart); paint(initialGoal);
 assert.equal(state(), original, 'Endpoint terrain was overwritten');
 
 tool('wall'); paint(0); assert.equal(read('maze.cells[0]'), -1);
-tool('weight'); paint(1); assert.equal(read('maze.cells[1]'), 5);
 tool('erase'); paint(0); assert.equal(read('maze.cells[0]'), 1);
 tool('start'); paint(1); assert.equal(read('maze.start'), 1); assert.equal(read('maze.cells[1]'), 1);
 paint(initialGoal); assert.notEqual(read('maze.start'), read('maze.goal'));
@@ -201,58 +241,10 @@ for (const difficulty of ['easy', 'medium', 'hard']) {
   assert.equal(elements['metric-found'].textContent, 'Path found');
   assert.equal(read('terrainLabels[maze.start].textContent'), 'S');
   assert.equal(read('terrainLabels[maze.goal].textContent'), 'G');
-  tool('weight'); paint(0);
-  assert.equal(read('maze.cells[0]'), 5, 'Manual editing stopped working after generation');
+  tool('erase'); paint(0);
+  assert.equal(read('maze.cells[0]'), 1, 'Manual editing stopped working after generation');
   assert.equal(read('maze.generation'), undefined, 'Generated metadata survived manual editing');
   assert.equal(elements['comparison-body'].children.length, 0);
 }
-// New weighted teaching controls use the same real event handlers.
-load('weighted'); elements.algorithm.value = 'Dijkstra'; elements.algorithm.fire('change');
-elements['show-costs'].checked = true; elements['show-costs'].fire('change');
-elements['step-mode'].checked = true;
-click('run'); assert.equal(pending.size, 0); assert(elements.pause.disabled);
-assert(!elements['next-step'].disabled); assert(!elements['trace-panel'].hidden);
-assert.equal(read('visualDistances[maze.start]'), 0);
-assert(!read('distanceLabels[maze.start].hidden'));
-click('next-step'); assert.equal(read('currentCell'), weightedStart);
-assert(elements['trace-heading'].textContent.includes('accumulated cost 0'));
-click('next-step'); assert(elements['trace-message'].textContent.includes('0 + 1 = 1'));
-assert(elements['trace-message'].textContent.includes('Cheaper than ∞'));
-assert(elements['trace-message'].textContent.includes('tentative'));
-let guard = 2000;
-while (read('visualDistances[maze.goal] === undefined') && guard-- > 0) click('next-step');
-assert(guard > 0); assert(read('running')); assert(!read('visualSettled.has(maze.goal)'));
-assert(elements['why-panel'].hidden, 'Explanation appeared when goal was only discovered');
-while (!read('visualSettled.has(maze.goal)') && guard-- > 0) click('next-step');
-assert(elements['trace-message'].textContent.includes('Goal removed from the min-heap'));
-while (read('running') && guard-- > 0) click('next-step');
-assert(guard > 0); assert(!elements['why-panel'].hidden);
-assert.equal(elements['why-breakdown'].textContent, '20 cells × 1 = 20');
-assert.equal(read('distanceLabels[maze.goal].textContent'), 'g:20');
-assert.equal(read('terrainLabels[maze.goal].textContent'), 'G');
-assert.equal(read('endpointLabels[maze.goal].textContent'), '1');
-assert.equal(read('terrainLabels[6 * maze.cols + 7].textContent'), '9');
-elements['show-costs'].checked = false; elements['show-costs'].fire('change');
-assert(read('distanceLabels[maze.goal].hidden'));
-assert.equal(read('terrainLabels[6 * maze.cols + 7].textContent'), '9');
-// Reset cancels a partial manual replay, and Next step cannot revive it.
-click('run'); click('next-step'); click('reset'); elements['next-step'].fire('click');
-assert(!read('running')); assert.equal(pending.size, 0); assert(elements['trace-panel'].hidden);
-elements['step-mode'].checked = false;
-tool('weight'); elements['terrain-cost'].value = '9'; elements['terrain-cost'].fire('change');
-paint(7 * 23 + 6); click('run'); finish();
-assert.equal(elements['metric-cost'].textContent, 28);
-assert.equal(elements['why-breakdown'].textContent, '19 cells × 1 + 1 cell × 9 = 28');
-paint(8 * 23 + 6); assert(elements['why-panel'].hidden);
-click('run'); finish();
-assert.equal(elements['metric-moves'].textContent, 16); assert.equal(elements['metric-cost'].textContent, 30);
-assert.equal(elements['why-breakdown'].textContent, '8 cells × 1 + 6 cells × 2 + 2 cells × 5 = 30');
-assert.equal(read('terrainLabels[3 * maze.cols + 7].textContent'), '2');
-assert(cell(3 * 23 + 7).className.includes('path'));
-for (const cost of ['1', '2', '5', '9']) {
-  elements['terrain-cost'].value = cost; paint(0);
-  assert.equal(read('maze.cells[0]'), Number(cost));
-  assert.equal(read('terrainLabels[0].textContent'), cost);
-}
-assert.equal(read('maze.cells[maze.goal]'), 1);
-console.log('PASS: all existing UI controls, dynamic grid sizes, teaching step mode, tentative/settled labels, goal settlement, weight selector, actual cost breakdown, and edited-route reruns (DOM/timer test doubles).');
+verifyLabelVisibility();
+console.log('PASS: existing controls and demo-specific label visibility.');
